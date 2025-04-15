@@ -1,0 +1,15 @@
+$bg: #121212;
+$canvas-border: 3px solid white;
+
+body {
+  margin: 0;
+  background-color: $bg;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+canvas {
+  border: $canvas-border;
+}
