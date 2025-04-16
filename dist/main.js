@@ -15,25 +15,38 @@ function getRandomTile() {
 }
 function createFallingTiles() {
     const tiles = [];
+    let attempts = 0;
+    do {
+        board = createEmptyBoard();
+        for (let row = 0; row < boardSize; row++) {
+            for (let col = 0; col < boardSize; col++) {
+                let tile;
+                do {
+                    tile = getRandomTile();
+                    board[row][col] = tile;
+                } while (hasMatchAt(board, row, col));
+            }
+        }
+        attempts++;
+    } while (hasAnyMatch(board) && attempts < 100);
     for (let col = 0; col < boardSize; col++) {
-        const usedTiles = [];
         for (let i = 0; i < boardSize; i++) {
             const row = boardSize - 1 - i;
-            let tile;
-            do {
-                tile = getRandomTile();
-            } while (usedTiles.length >= 2 &&
-                tile === usedTiles[usedTiles.length - 1] &&
-                tile === usedTiles[usedTiles.length - 2]);
-            usedTiles.push(tile);
             tiles.push({
-                type: tile,
+                type: board[row][col],
                 row: row,
                 col: col,
                 y: -(i + 1) * tileSize * 2,
                 speed: 5 + Math.random() * 2
             });
         }
+    }
+    console.log(`Board initialized in ${attempts} attempt`);
+    if (hasAnyMatch(board)) {
+        console.log("MATCH FOUND ON INIT!", board);
+    }
+    else {
+        console.log("No match on init");
     }
     return tiles;
 }
@@ -52,10 +65,6 @@ function animateFallingTiles(tiles, onFinish) {
             drawTile(tile.type, tile.col * tileSize, tile.y);
         }
         if (allLanded) {
-            const board = createEmptyBoard();
-            for (const tile of tiles) {
-                board[tile.row][tile.col] = tile.type;
-            }
             onFinish(board);
         }
         else {
@@ -137,16 +146,14 @@ function runMatchCycle() {
         return;
     }
     isFalling = true;
-    removeMatches(board, matches);
-    drawBoard(board);
-    setTimeout(() => {
+    animateRemove(matches, () => {
+        removeMatches(board, matches);
         collapseBoard(board);
-        refillBoard(board);
-        drawBoard(board);
-        setTimeout(() => {
-            runMatchCycle();
-        }, 250);
-    }, 300);
+        animateRefill(board, () => {
+            isFalling = false;
+            drawBoard(board);
+        });
+    });
 }
 function findMatches(board) {
     const matches = [];
@@ -229,6 +236,92 @@ function refillBoard(board) {
         }
     }
 }
+function animateRefill(board, onFinish) {
+    const fallingTiles = [];
+    const newTiles = [];
+    for (let col = 0; col < boardSize; col++) {
+        for (let row = 0; row < boardSize; row++) {
+            if (board[row][col] === -1) {
+                const newTile = getRandomTile();
+                newTiles.push({ row, col, type: newTile });
+                fallingTiles.push({
+                    type: newTile,
+                    row,
+                    col,
+                    y: -tileSize * 2,
+                    speed: 0
+                });
+            }
+        }
+    }
+    const duration = 2000;
+    const startTime = performance.now();
+    function step(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = easeOutCubic(progress);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBoard(board);
+        for (const tile of fallingTiles) {
+            const targetY = tile.row * tileSize;
+            tile.y = -tileSize * 2 + (targetY + tileSize * 2) * eased;
+            drawTile(tile.type, tile.col * tileSize, tile.y);
+        }
+        if (progress < 1) {
+            requestAnimationFrame(step);
+        }
+        else {
+            for (const { row, col, type } of newTiles) {
+                board[row][col] = type;
+            }
+            drawBoard(board);
+            onFinish();
+        }
+    }
+    requestAnimationFrame(step);
+}
+function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+}
+function animateRemove(matches, onFinish) {
+    const duration = 500;
+    const startTime = performance.now();
+    function step(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (let row = 0; row < boardSize; row++) {
+            for (let col = 0; col < boardSize; col++) {
+                const isMatched = matches.some(m => m.row === row && m.col === col);
+                if (isMatched)
+                    continue;
+                drawTile(board[row][col], col * tileSize, row * tileSize);
+            }
+        }
+        for (const { row, col } of matches) {
+            const tile = board[row][col];
+            if (tile === -1)
+                continue;
+            const scale = 1 - progress;
+            const size = tileSize * scale;
+            const offset = (tileSize - size) / 2;
+            const x = col * tileSize + offset;
+            const y = row * tileSize + offset;
+            ctx.save();
+            ctx.globalAlpha = 1 - progress;
+            ctx.fillStyle = ['red', 'green', 'blue', 'yellow', 'purple'][tile];
+            ctx.fillRect(x + 4, y + 4, size - 8, size - 8);
+            ctx.restore();
+        }
+        if (progress < 1) {
+            requestAnimationFrame(step);
+        }
+        else {
+            onFinish();
+        }
+    }
+    requestAnimationFrame(step);
+}
 function showMessage(text, type = 'info', duration = 2000) {
     const messageElement = document.getElementById('message');
     if (!messageElement)
@@ -242,8 +335,7 @@ function showMessage(text, type = 'info', duration = 2000) {
     }, duration);
 }
 const fallingTiles = createFallingTiles();
-animateFallingTiles(fallingTiles, (finalBoard) => {
-    board = finalBoard;
+animateFallingTiles(fallingTiles, () => {
     drawBoard(board);
     isFalling = false;
 });
