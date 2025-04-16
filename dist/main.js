@@ -5,56 +5,103 @@ const tileSize = 64;
 const boardSize = 8;
 const tileTypes = 5;
 let selected = null;
-function getRandomTile() {
-    return Math.floor(Math.random() * tileTypes);
-}
+let board = createEmptyBoard();
+let isFalling = true;
 function createEmptyBoard() {
     return Array.from({ length: boardSize }, () => Array(boardSize).fill(-1));
 }
-function hasMatchAt(board, row, col) {
-    const tile = board[row][col];
-    // Горизонталь
-    if (col >= 2 &&
-        tile === board[row][col - 1] &&
-        tile === board[row][col - 2])
-        return true;
-    // Вертикаль
-    if (row >= 2 &&
-        tile === board[row - 1][col] &&
-        tile === board[row - 2][col])
-        return true;
-    return false;
+function getRandomTile() {
+    return Math.floor(Math.random() * tileTypes);
 }
-function generateBoard() {
-    const board = createEmptyBoard();
-    for (let row = 0; row < boardSize; row++) {
-        for (let col = 0; col < boardSize; col++) {
+function createFallingTiles() {
+    const tiles = [];
+    for (let col = 0; col < boardSize; col++) {
+        const usedTiles = [];
+        for (let i = 0; i < boardSize; i++) {
+            const row = boardSize - 1 - i;
             let tile;
             do {
                 tile = getRandomTile();
-                board[row][col] = tile;
-            } while (hasMatchAt(board, row, col));
+            } while (usedTiles.length >= 2 &&
+                tile === usedTiles[usedTiles.length - 1] &&
+                tile === usedTiles[usedTiles.length - 2]);
+            usedTiles.push(tile);
+            tiles.push({
+                type: tile,
+                row: row,
+                col: col,
+                y: -(i + 1) * tileSize * 2,
+                speed: 5 + Math.random() * 2
+            });
         }
     }
-    return board;
+    return tiles;
 }
-function drawBoard(board) {
+function animateFallingTiles(tiles, onFinish) {
+    function step() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        let allLanded = true;
+        for (const tile of tiles) {
+            const targetY = tile.row * tileSize;
+            if (tile.y < targetY) {
+                tile.y += tile.speed;
+                if (tile.y > targetY)
+                    tile.y = targetY;
+                allLanded = false;
+            }
+            drawTile(tile.type, tile.col * tileSize, tile.y);
+        }
+        if (allLanded) {
+            const board = createEmptyBoard();
+            for (const tile of tiles) {
+                board[tile.row][tile.col] = tile.type;
+            }
+            onFinish(board);
+        }
+        else {
+            requestAnimationFrame(step);
+        }
+    }
+    requestAnimationFrame(step);
+}
+function drawTile(tile, x, y, highlight = false) {
+    if (tile === -1) {
+        ctx.clearRect(x, y, tileSize, tileSize);
+        return;
+    }
+    const colors = ['red', 'green', 'blue', 'yellow', 'purple'];
+    ctx.fillStyle = highlight ? 'crimson' : colors[tile];
+    ctx.fillRect(x + 4, y + 4, tileSize - 8, tileSize - 8);
+}
+function drawBoard(board, highlight) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let row = 0; row < boardSize; row++) {
         for (let col = 0; col < boardSize; col++) {
-            drawTile(board[row][col], col * tileSize, row * tileSize);
+            const isHighlighted = highlight &&
+                ((highlight.from.row === row && highlight.from.col === col) ||
+                    (highlight.to.row === row && highlight.to.col === col));
+            drawTile(board[row][col], col * tileSize, row * tileSize, isHighlighted);
         }
     }
-}
-function drawTile(tile, x, y) {
-    const colors = ['red', 'green', 'blue', 'yellow', 'purple'];
-    ctx.fillStyle = colors[tile];
-    ctx.fillRect(x + 4, y + 4, tileSize - 8, tileSize - 8);
 }
 function swapTiles(board, a, b) {
     const temp = board[a.row][a.col];
     board[a.row][a.col] = board[b.row][b.col];
     board[b.row][b.col] = temp;
+}
+function hasMatchAt(board, row, col) {
+    const tile = board[row][col];
+    if (tile === -1)
+        return false;
+    if (col >= 2 &&
+        tile === board[row][col - 1] &&
+        tile === board[row][col - 2])
+        return true;
+    if (row >= 2 &&
+        tile === board[row - 1][col] &&
+        tile === board[row - 2][col])
+        return true;
+    return false;
 }
 function hasAnyMatch(board) {
     for (let row = 0; row < boardSize; row++) {
@@ -67,11 +114,12 @@ function hasAnyMatch(board) {
 }
 function handleMatches() {
     const toRemove = Array.from({ length: boardSize }, () => Array(boardSize).fill(false));
-    // знайти всі матчі
     for (let row = 0; row < boardSize; row++) {
         for (let col = 0; col < boardSize - 2; col++) {
             const t = board[row][col];
-            if (t === board[row][col + 1] && t === board[row][col + 2]) {
+            if (t !== -1 &&
+                t === board[row][col + 1] &&
+                t === board[row][col + 2]) {
                 toRemove[row][col] = toRemove[row][col + 1] = toRemove[row][col + 2] = true;
             }
         }
@@ -79,12 +127,13 @@ function handleMatches() {
     for (let col = 0; col < boardSize; col++) {
         for (let row = 0; row < boardSize - 2; row++) {
             const t = board[row][col];
-            if (t === board[row + 1][col] && t === board[row + 2][col]) {
+            if (t !== -1 &&
+                t === board[row + 1][col] &&
+                t === board[row + 2][col]) {
                 toRemove[row][col] = toRemove[row + 1][col] = toRemove[row + 2][col] = true;
             }
         }
     }
-    // видалити
     for (let col = 0; col < boardSize; col++) {
         for (let row = boardSize - 1; row >= 0; row--) {
             if (toRemove[row][col]) {
@@ -95,16 +144,23 @@ function handleMatches() {
             }
         }
     }
+    drawBoard(board);
     if (hasAnyMatch(board)) {
         setTimeout(() => {
             handleMatches();
-            drawBoard(board);
         }, 200);
     }
 }
-const board = generateBoard();
-drawBoard(board);
+// 🎮 Запуск гри
+const fallingTiles = createFallingTiles();
+animateFallingTiles(fallingTiles, (finalBoard) => {
+    board = finalBoard;
+    drawBoard(board);
+    isFalling = false;
+});
 canvas.addEventListener("click", (e) => {
+    if (isFalling)
+        return;
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -116,22 +172,22 @@ canvas.addEventListener("click", (e) => {
     else {
         const dr = Math.abs(selected.row - row);
         const dc = Math.abs(selected.col - col);
-        // лише сусідні
         if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) {
             swapTiles(board, selected, { row, col });
-            drawBoard(board); // 💥 додай ось тут перерисовку ОДРАЗУ після обміну
+            drawBoard(board);
             if (hasAnyMatch(board)) {
                 setTimeout(() => {
                     handleMatches();
-                    drawBoard(board);
                 }, 200);
             }
             else {
-                // скасовуємо обмін через 200мс для ефекту
+                const from = selected;
+                const to = { row, col };
+                drawBoard(board, { from, to });
                 setTimeout(() => {
-                    swapTiles(board, selected, { row, col });
+                    swapTiles(board, from, to);
                     drawBoard(board);
-                }, 200);
+                }, 300);
             }
         }
         selected = null;
