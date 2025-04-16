@@ -370,12 +370,14 @@ canvas.addEventListener("click", (e) => {
             }, 200);
         }
         else {
+            isFalling = true;
             setTimeout(() => {
                 drawBoard(board, { from, to, state: 'error' });
                 showMessage("Match wasn't here", 'error');
                 setTimeout(() => {
                     swapTiles(board, from, to);
                     drawBoard(board);
+                    isFalling = false;
                 }, 300);
             }, 500);
         }

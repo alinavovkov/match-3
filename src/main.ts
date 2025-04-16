@@ -455,6 +455,7 @@ canvas.addEventListener("click", (e) => {
                 runMatchCycle();
             }, 200);
         } else {
+            isFalling = true;
             setTimeout(() => {
                 drawBoard(board, { from, to, state: 'error' });
                 showMessage("Match wasn't here", 'error');
@@ -462,6 +463,7 @@ canvas.addEventListener("click", (e) => {
                 setTimeout(() => {
                     swapTiles(board, from, to);
                     drawBoard(board);
+                    isFalling = false; 
                 }, 300);
             }, 500);
         }
