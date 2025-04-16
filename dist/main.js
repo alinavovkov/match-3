@@ -229,6 +229,18 @@ function refillBoard(board) {
         }
     }
 }
+function showMessage(text, type = 'info', duration = 2000) {
+    const messageElement = document.getElementById('message');
+    if (!messageElement)
+        return;
+    messageElement.textContent = text;
+    messageElement.className = type;
+    setTimeout(() => {
+        if (messageElement.textContent === text) {
+            messageElement.classList.add('hidden');
+        }
+    }, duration);
+}
 const fallingTiles = createFallingTiles();
 animateFallingTiles(fallingTiles, (finalBoard) => {
     board = finalBoard;
@@ -248,29 +260,33 @@ canvas.addEventListener("click", (e) => {
         drawBoard(board, { from: selected });
         return;
     }
-    else {
-        const dr = Math.abs(selected.row - row);
-        const dc = Math.abs(selected.col - col);
-        if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) {
-            const from = selected;
-            const to = { row, col };
-            swapTiles(board, from, to);
-            drawBoard(board, { from, to });
-            if (hasAnyMatch(board)) {
-                setTimeout(() => {
-                    runMatchCycle();
-                }, 200);
-            }
-            else {
-                setTimeout(() => {
-                    drawBoard(board, { from, to, state: 'error' });
-                    setTimeout(() => {
-                        swapTiles(board, from, to);
-                        drawBoard(board);
-                    }, 300);
-                }, 500);
-            }
-        }
-        selected = null;
+    if (selected.row === row && selected.col === col) {
+        showMessage("Please select a different tile", 'error');
+        return;
     }
+    const dr = Math.abs(selected.row - row);
+    const dc = Math.abs(selected.col - col);
+    if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) {
+        const from = selected;
+        const to = { row, col };
+        swapTiles(board, from, to);
+        drawBoard(board, { from, to });
+        if (hasAnyMatch(board)) {
+            showMessage("Increadible!", 'info');
+            setTimeout(() => {
+                runMatchCycle();
+            }, 200);
+        }
+        else {
+            setTimeout(() => {
+                drawBoard(board, { from, to, state: 'error' });
+                showMessage("Match wasn't here", 'error');
+                setTimeout(() => {
+                    swapTiles(board, from, to);
+                    drawBoard(board);
+                }, 300);
+            }, 500);
+        }
+    }
+    selected = null;
 });

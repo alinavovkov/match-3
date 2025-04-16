@@ -2,6 +2,7 @@ body {
   margin: 0;
   background-color: #121212;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   height: 100vh;
@@ -9,6 +10,26 @@ body {
 
 canvas {
   border: 3px solid white;
+}
+
+#message {
+  text-align: center;
+  font-family: Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif;
+  font-size: 18px;
+  color: #e4e3e3;
+  margin-top: 16px;
+  min-height: 24px;
+  transition: opacity 0.3s ease;
+  opacity: 1;
+}
+#message.hidden {
+  opacity: 0;
+}
+#message.error {
+  color: rgb(230, 189, 197);
+}
+#message.info {
+  color: #b6cee6;
 }
 
 /*# sourceMappingURL=main.css.map */

@@ -5,6 +5,7 @@ body {
   margin: 0;
   background-color: $bg;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   height: 100vh;
@@ -13,3 +14,27 @@ body {
 canvas {
   border: $canvas-border;
 }
+
+#message {
+  text-align: center;
+  font-family:Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  font-size: 18px;
+  color: #e4e3e3;
+  margin-top: 16px;
+  min-height: 24px;
+  transition: opacity 0.3s ease;
+  opacity: 1;
+
+  &.hidden {
+    opacity: 0;
+  }
+
+  &.error {
+    color: rgb(230, 189, 197);
+  }
+
+  &.info {
+    color: #b6cee6;
+  }
+}
+
