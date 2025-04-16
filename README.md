@@ -12,7 +12,7 @@ Players can click on two tiles to swap them. If a match of 3, 4, 5 identical til
 - Smooth tile swapping and rollback on invalid moves
 - Glowing tile borders and red error glow for invalid swaps
 - Prevents double-clicks and repeated clicks on the same tile
-- User messages for feedback (e.g., invalid move, same tile)
+- User messages for feedback (e.g., successful move, same tile)
 
 ### Getting Started local or go to https://alinavovkov.github.io/match-3/
 
@@ -21,7 +21,7 @@ Players can click on two tiles to swap them. If a match of 3, 4, 5 identical til
 3. Open `index.html` in your browser
 4. Play!
 
-### 🛠 Technologies
+### Technologies
 
 - TypeScript
 - HTML5 Canvas
