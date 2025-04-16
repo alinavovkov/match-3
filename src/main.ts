@@ -17,7 +17,7 @@ type FallingTile = {
 
 let selected: { row: number; col: number } | null = null;
 let board: Board = createEmptyBoard();
-let isFalling = true; 
+let isFalling = true;
 
 function createEmptyBoard(): Board {
     return Array.from({ length: boardSize }, () => Array(boardSize).fill(-1));
@@ -91,28 +91,55 @@ function animateFallingTiles(tiles: FallingTile[], onFinish: (board: Board) => v
     requestAnimationFrame(step);
 }
 
-
-function drawTile(tile: Tile, x: number, y: number, highlight = false) {
+function drawTile(tile: Tile, x: number, y: number, highlight: false | 'selected' | 'error' = false) {
     if (tile === -1) {
         ctx.clearRect(x, y, tileSize, tileSize);
         return;
     }
 
     const colors = ['red', 'green', 'blue', 'yellow', 'purple'];
-    ctx.fillStyle = highlight ? 'crimson' : colors[tile];
+    ctx.fillStyle = colors[tile];
     ctx.fillRect(x + 4, y + 4, tileSize - 8, tileSize - 8);
+
+    if (highlight) {
+        ctx.save();
+        ctx.shadowBlur = 15;
+        ctx.lineWidth = 3;
+
+        if (highlight === 'error') {
+            ctx.strokeStyle = 'crimson';
+            ctx.shadowColor = 'crimson';
+        } else {
+            ctx.strokeStyle = '#9ecaed';
+            ctx.shadowColor = '#9ecaed';
+        }
+
+        ctx.strokeRect(x + 4, y + 4, tileSize - 8, tileSize - 8);
+        ctx.restore();
+    }
 }
 
-function drawBoard(board: Board, highlight?: { from: { row: number; col: number }, to: { row: number; col: number } }) {
+function drawBoard(
+    board: Board,
+    highlight?: {
+        from?: { row: number; col: number },
+        to?: { row: number; col: number },
+        state?: 'selected' | 'error'
+    }) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let row = 0; row < boardSize; row++) {
         for (let col = 0; col < boardSize; col++) {
-            const isHighlighted = highlight &&
-                ((highlight.from.row === row && highlight.from.col === col) ||
-                    (highlight.to.row === row && highlight.to.col === col));
+            let highlightType: false | 'selected' | 'error' = false;
 
-            drawTile(board[row][col], col * tileSize, row * tileSize, isHighlighted);
+            if (
+                (highlight?.from?.row === row && highlight?.from?.col === col) ||
+                (highlight?.to?.row === row && highlight?.to?.col === col)
+            ) {
+                highlightType = highlight.state || 'selected';
+            }
+
+            drawTile(board[row][col], col * tileSize, row * tileSize, highlightType);
         }
     }
 }
@@ -152,20 +179,56 @@ function hasAnyMatch(board: Board): boolean {
     return false;
 }
 
-function handleMatches() {
-    const toRemove: boolean[][] = Array.from({ length: boardSize }, () =>
-        Array(boardSize).fill(false)
-    );
+function runMatchCycle() {
+    const matches = findMatches(board);
+
+    if (matches.length === 0) {
+        isFalling = false;
+        return;
+    }
+
+    isFalling = true;
+    removeMatches(board, matches);
+    drawBoard(board);
+
+    setTimeout(() => {
+        collapseBoard(board);
+        refillBoard(board);
+        drawBoard(board);
+
+        setTimeout(() => {
+            runMatchCycle();
+        }, 250);
+    }, 300);
+}
+
+function findMatches(board: Board): { row: number; col: number }[] {
+    const matches: { row: number; col: number }[] = [];
+    const added = new Set<string>();
 
     for (let row = 0; row < boardSize; row++) {
         for (let col = 0; col < boardSize - 2; col++) {
             const t = board[row][col];
-            if (
-                t !== -1 &&
-                t === board[row][col + 1] &&
-                t === board[row][col + 2]
-            ) {
-                toRemove[row][col] = toRemove[row][col + 1] = toRemove[row][col + 2] = true;
+            if (t !== -1 && t === board[row][col + 1] && t === board[row][col + 2]) {
+                for (let k = 0; k < 3; k++) {
+                    const key = `${row}:${col + k}`;
+                    if (!added.has(key)) {
+                        matches.push({ row, col: col + k });
+                        added.add(key);
+                    }
+                }
+
+                let k = col + 3;
+                while (k < boardSize && board[row][k] === t) {
+                    const key = `${row}:${k}`;
+                    if (!added.has(key)) {
+                        matches.push({ row, col: k });
+                        added.add(key);
+                    }
+                    k++;
+                }
+
+                col = k - 1;
             }
         }
     }
@@ -173,43 +236,72 @@ function handleMatches() {
     for (let col = 0; col < boardSize; col++) {
         for (let row = 0; row < boardSize - 2; row++) {
             const t = board[row][col];
-            if (
-                t !== -1 &&
-                t === board[row + 1][col] &&
-                t === board[row + 2][col]
-            ) {
-                toRemove[row][col] = toRemove[row + 1][col] = toRemove[row + 2][col] = true;
-            }
-        }
-    }
-
-    for (let col = 0; col < boardSize; col++) {
-        for (let row = boardSize - 1; row >= 0; row--) {
-            if (toRemove[row][col]) {
-                for (let r = row; r > 0; r--) {
-                    board[r][col] = board[r - 1][col];
+            if (t !== -1 && t === board[row + 1][col] && t === board[row + 2][col]) {
+                for (let k = 0; k < 3; k++) {
+                    const key = `${row + k}:${col}`;
+                    if (!added.has(key)) {
+                        matches.push({ row: row + k, col });
+                        added.add(key);
+                    }
                 }
-                board[0][col] = getRandomTile();
+
+                let k = row + 3;
+                while (k < boardSize && board[k][col] === t) {
+                    const key = `${k}:${col}`;
+                    if (!added.has(key)) {
+                        matches.push({ row: k, col });
+                        added.add(key);
+                    }
+                    k++;
+                }
+
+                row = k - 1;
             }
         }
     }
 
-    drawBoard(board);
+    return matches;
+}
 
-    if (hasAnyMatch(board)) {
-        setTimeout(() => {
-            handleMatches();
-        }, 200);
+function removeMatches(board: Board, matches: { row: number; col: number }[]) {
+    for (const { row, col } of matches) {
+        board[row][col] = -1;
     }
 }
 
-// 🎮 Запуск гри
+function collapseBoard(board: Board) {
+    for (let col = 0; col < boardSize; col++) {
+        let emptyRow = boardSize - 1;
+        for (let row = boardSize - 1; row >= 0; row--) {
+            if (board[row][col] !== -1) {
+                board[emptyRow][col] = board[row][col];
+                if (emptyRow !== row) {
+                    board[row][col] = -1;
+                }
+                emptyRow--;
+            }
+        }
+    }
+}
+
+function refillBoard(board: Board) {
+    for (let row = 0; row < boardSize; row++) {
+        for (let col = 0; col < boardSize; col++) {
+            if (board[row][col] === -1) {
+                board[row][col] = getRandomTile();
+            }
+        }
+    }
+}
+
 const fallingTiles = createFallingTiles();
 animateFallingTiles(fallingTiles, (finalBoard) => {
     board = finalBoard;
     drawBoard(board);
     isFalling = false;
 });
+
+
 
 canvas.addEventListener("click", (e) => {
     if (isFalling) return;
@@ -223,30 +315,34 @@ canvas.addEventListener("click", (e) => {
 
     if (!selected) {
         selected = { row, col };
+        drawBoard(board, { from: selected });
+        return;
     } else {
         const dr = Math.abs(selected.row - row);
         const dc = Math.abs(selected.col - col);
 
         if ((dr === 1 && dc === 0) || (dr === 0 && dc === 1)) {
-            swapTiles(board, selected, { row, col });
-            drawBoard(board);
+            const from = selected;
+            const to = { row, col };
+
+            swapTiles(board, from, to);
+            drawBoard(board, { from, to });
 
             if (hasAnyMatch(board)) {
                 setTimeout(() => {
-                    handleMatches();
+                    runMatchCycle();
                 }, 200);
             } else {
-                const from = selected;
-                const to = { row, col };
-                drawBoard(board, { from, to });
-
                 setTimeout(() => {
-                    swapTiles(board, from, to);
-                    drawBoard(board);
-                }, 300);
+                    drawBoard(board, { from, to, state: 'error' });
+
+                    setTimeout(() => {
+                        swapTiles(board, from, to);
+                        drawBoard(board);
+                    }, 300);
+                }, 500);
             }
         }
-
         selected = null;
     }
 });
